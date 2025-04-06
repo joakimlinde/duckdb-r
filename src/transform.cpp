@@ -171,11 +171,11 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 		auto &child_type = ArrayType::GetChildType(type);
 		if (child_type.IsNested())
 			cpp11::stop("rapi_execute: Array must not be nested.");
-		duckdb_r_decorate(child_type, dest, nrows, integer64); //$$$-JL Do we need to call this? Any decorations will be wiped out anyway
+		duckdb_r_decorate(child_type, dest, nrows, integer64);
 		SET_CLASS(dest, RStrings::get().matrix_array_str);
 		cpp11::sexp dims = NEW_INTEGER(2);
-		INTEGER_POINTER(dims)[0] = nrows;
-		INTEGER_POINTER(dims)[1] = array_size;
+		INTEGER(dims)[0] = nrows;
+		INTEGER(dims)[1] = array_size;
 		Rf_setAttrib(dest, RStrings::get().dim_sym, dims);
 		}
 		break;
@@ -242,7 +242,6 @@ SEXP ToRString(const string_t &input) {
 }
 
 void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx_t dest_step_size, idx_t n, bool integer64) {
-	Rprintf("duckdb_r_transform\n"); //$$$-JL
 	if (src_vec.GetType().GetAlias() == R_STRING_TYPE_NAME) {
 		ptrdiff_t sexp_header_size = (data_ptr_t)DATAPTR_RO(R_BlankString) - (data_ptr_t)R_BlankString;
 
@@ -456,8 +455,7 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 		auto array_size = ArrayType::GetSize(src_vec.GetType());
 		auto &child_type = ArrayType::GetChildType(src_vec.GetType());
 		Vector child_vector(child_type, nullptr);
-
-		auto matrix_nrow = INTEGER_POINTER(Rf_getAttrib(dest, RStrings::get().dim_sym))[0];
+		auto matrix_nrow = ( Rf_length(dest) / array_size );
 
 		// actual loop over rows
 		for (size_t row_idx = 0; row_idx < n; row_idx++) {
