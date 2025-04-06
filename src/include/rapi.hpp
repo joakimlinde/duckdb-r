@@ -163,6 +163,7 @@ struct RStrings {
 	SEXP arrow_str; // StringsToSexp
 	SEXP duckdb_str;
 	SEXP POSIXct_POSIXt_str;
+	SEXP matrix_array_str;
 	SEXP integer64_str;
 	SEXP enc2utf8_sym; // Rf_install
 	SEXP tzone_sym;

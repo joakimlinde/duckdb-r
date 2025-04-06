@@ -164,6 +164,7 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 		if (child_type.IsNested())
 			cpp11::stop("rapi_execute: Array must not be nested.");
 		duckdb_r_decorate(child_type, dest, nrows, integer64);
+		SET_CLASS(dest, RStrings::get().matrix_array_str);
 		cpp11::sexp dims = NEW_INTEGER(2);
 		INTEGER_POINTER(dims)[0] = nrows;
 		INTEGER_POINTER(dims)[1] = array_size
