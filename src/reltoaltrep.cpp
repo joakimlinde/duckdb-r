@@ -426,7 +426,7 @@ size_t DoubleToSize(double d) {
 		R_SetExternalPtrTag(ptr, RStrings::get().duckdb_vector_sym);
 
 		cpp11::sexp vector_sexp = R_new_altrep(LogicalTypeToAltrepType(column_type), ptr, R_NilValue);
-		duckdb_r_decorate(column_type, vector_sexp, false);
+		duckdb_r_decorate(column_type, vector_sexp, DoubleToSize(n_rows), false);
 		data_frame.push_back(vector_sexp);
 	}
 

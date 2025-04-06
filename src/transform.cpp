@@ -50,6 +50,14 @@ SEXP duckdb_r_allocate(const LogicalType &type, idx_t nrows) {
 	case LogicalTypeId::LIST:
 	case LogicalTypeId::MAP:
 		return NEW_LIST(nrows);
+	case LogicalTypeId::ARRAY: {
+		auto array_size = ArrayType::GetSize(type)
+		auto child_type = ArrayType::GetChildType(type);
+		if (child_type.IsNested())
+			cpp11::stop("rapi_execute: Array must not be nested.");
+		cpp11::sexp varvalue = duckdb_r_allocate(child_type, (nrows * array_size));
+		return varvalue;
+	}
 	case LogicalTypeId::STRUCT: {
 		cpp11::writable::list dest_list;
 		dest_list.reserve(StructType::GetChildTypes(type).size());
@@ -126,7 +134,7 @@ void ConvertTimestampVector(Vector &src_vec, size_t count, const SEXP dest, uint
 
 std::once_flag nanosecond_coercion_warning;
 
-void duckdb_r_decorate(const LogicalType &type, const SEXP dest, bool integer64) {
+void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bool integer64) {
 	if (type.GetAlias() == R_STRING_TYPE_NAME) {
 		return;
 	}
@@ -150,6 +158,18 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, bool integer64)
 	case LogicalTypeId::LIST:
 	case LogicalTypeId::MAP:
 		break; // no extra decoration required, do nothing
+	case LogicalTypeId::ARRAY: {
+		auto array_size = ArrayType::GetSize(type)
+		auto child_type = ArrayType::GetChildType(type);
+		if (child_type.IsNested())
+			cpp11::stop("rapi_execute: Array must not be nested.");
+		duckdb_r_decorate(child_type, dest, nrows, integer64);
+		cpp11::sexp dims = NEW_INTEGER(2);
+		INTEGER_POINTER(dims)[0] = nrows;
+		INTEGER_POINTER(dims)[1] = array_size
+		Rf_setAttrib(varvalue, RStrings::get().dim_sym, dims)
+		}
+		break;
 	case LogicalTypeId::TIMESTAMP_SEC:
 	case LogicalTypeId::TIMESTAMP_MS:
 	case LogicalTypeId::TIMESTAMP:
@@ -177,12 +197,11 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, bool integer64)
 		for (size_t i = 0; i < child_types.size(); i++) {
 			const auto &child_type = child_types[i].second;
 			SEXP child_dest = VECTOR_ELT(dest, i);
-			duckdb_r_decorate(child_type, child_dest, integer64);
+			duckdb_r_decorate(child_type, child_dest, nrows, integer64);
 		}
 
 		break;
 	}
-
 	case LogicalTypeId::ENUM: {
 		auto &str_vec = EnumType::GetValuesInsertOrder(type);
 		auto size = EnumType::GetSize(type);
@@ -194,7 +213,6 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, bool integer64)
 		SET_CLASS(dest, RStrings::get().factor_str);
 		break;
 	}
-
 	default:
 		cpp11::stop("rapi_execute: Unknown column type for convert: %s", type.ToString().c_str());
 		break;
@@ -215,6 +233,7 @@ SEXP ToRString(const string_t &input) {
 }
 
 void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx_t n, bool integer64) {
+	Rprintf("duckdb_r_transform\n");
 	if (src_vec.GetType().GetAlias() == R_STRING_TYPE_NAME) {
 		ptrdiff_t sexp_header_size = (data_ptr_t)DATAPTR_RO(R_BlankString) - (data_ptr_t)R_BlankString;
 
@@ -414,7 +433,32 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 
 				// transform the list child vector to a single R SEXP
 				cpp11::sexp list_element = duckdb_r_allocate(child_type, src_data[row_idx].length);
-				duckdb_r_decorate(child_type, list_element, integer64);
+				duckdb_r_decorate(child_type, list_element, rc_data[row_idx].length, integer64);
+				duckdb_r_transform(child_vector, list_element, 0, src_data[row_idx].length, integer64);
+
+				// call R's own extract subset method
+				SET_ELEMENT(dest, dest_offset + row_idx, list_element);
+			}
+		}
+		break;
+	}
+	case LogicalTypeId::ARRAY: {
+		// figure out the total and max element length of the list vector child
+		auto array_size = ArrayType::GetSize(src_vec.GetType());
+		auto &child_type = ArrayType::GetChildType(src_vec.GetType());
+		Vector child_vector(child_type, nullptr);
+
+		// actual loop over rows
+		for (size_t row_idx = 0; row_idx < n; row_idx++) {
+			if (!FlatVector::Validity(src_vec).RowIsValid(row_idx)) {
+				SET_ELEMENT(dest, dest_offset + row_idx, R_NilValue);
+			} else {
+				const auto end = src_data[row_idx].offset + src_data[row_idx].length;
+				child_vector.Slice(ListVector::GetEntry(src_vec), src_data[row_idx].offset, end);
+
+				// transform the list child vector to a single R SEXP
+				cpp11::sexp list_element = duckdb_r_allocate(child_type, src_data[row_idx].length);
+				duckdb_r_decorate(child_type, list_element, src_data[row_idx].length, integer64);
 				duckdb_r_transform(child_vector, list_element, 0, src_data[row_idx].length, integer64);
 
 				// call R's own extract subset method
@@ -434,7 +478,6 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 
 		break;
 	}
-
 	case LogicalTypeId::MAP: {
 		auto src_data = ListVector::GetData(src_vec);
 
@@ -458,8 +501,8 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 				cpp11::sexp key_sexp = duckdb_r_allocate(key_type, length);
 				cpp11::sexp value_sexp = duckdb_r_allocate(value_type, length);
 
-				duckdb_r_decorate(key_type, key_sexp, integer64);
-				duckdb_r_decorate(value_type, value_sexp, integer64);
+				duckdb_r_decorate(key_type, key_sexp, length, integer64);
+				duckdb_r_decorate(value_type, value_sexp, length, integer64);
 
 				duckdb_r_transform(key_child, key_sexp, 0, length, integer64);
 				duckdb_r_transform(value_child, value_sexp, 0, length, integer64);
@@ -483,7 +526,6 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 		}
 		break;
 	}
-
 	case LogicalTypeId::BLOB: {
 		auto src_ptr = FlatVector::GetData<string_t>(src_vec);
 		auto &mask = FlatVector::Validity(src_vec);

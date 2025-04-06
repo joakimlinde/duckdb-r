@@ -160,7 +160,7 @@ SEXP duckdb::duckdb_execute_R_impl(MaterializedQueryResult *result, bool integer
 
 	for (size_t col_idx = 0; col_idx < ncols; col_idx++) {
 		cpp11::sexp varvalue = duckdb_r_allocate(result->types[col_idx], nrows);
-		duckdb_r_decorate(result->types[col_idx], varvalue, integer64);
+		duckdb_r_decorate(result->types[col_idx], varvalue, nrows, integer64);
 		data_frame.push_back(varvalue);
 	}
 
