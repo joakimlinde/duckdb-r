@@ -242,7 +242,7 @@ SEXP ToRString(const string_t &input) {
 }
 
 void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx_t dest_step_size, idx_t n, bool integer64) {
-	Rprintf("duckdb_r_transform\n");
+	Rprintf("duckdb_r_transform\n"); //$$$-JL
 	if (src_vec.GetType().GetAlias() == R_STRING_TYPE_NAME) {
 		ptrdiff_t sexp_header_size = (data_ptr_t)DATAPTR_RO(R_BlankString) - (data_ptr_t)R_BlankString;
 
