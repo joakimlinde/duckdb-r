@@ -59,7 +59,7 @@ SEXP duckdb_r_allocate(const LogicalType &type, idx_t nrows) {
 	case LogicalTypeId::MAP:
 		return NEW_LIST(nrows);
 	case LogicalTypeId::ARRAY: {
-		auto array_size = ArrayType::GetSize(type)
+		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
 		if (child_type.IsNested())
 			cpp11::stop("rapi_execute: Array must not be nested.");
@@ -167,7 +167,7 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 	case LogicalTypeId::MAP:
 		break; // no extra decoration required, do nothing
 	case LogicalTypeId::ARRAY: {
-		auto array_size = ArrayType::GetSize(type)
+		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
 		if (child_type.IsNested())
 			cpp11::stop("rapi_execute: Array must not be nested.");
@@ -175,8 +175,8 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 		SET_CLASS(dest, RStrings::get().matrix_array_str);
 		cpp11::sexp dims = NEW_INTEGER(2);
 		INTEGER_POINTER(dims)[0] = nrows;
-		INTEGER_POINTER(dims)[1] = array_size
-		Rf_setAttrib(varvalue, RStrings::get().dim_sym, dims)
+		INTEGER_POINTER(dims)[1] = array_size;
+		Rf_setAttrib(dest, RStrings::get().dim_sym, dims);
 		}
 		break;
 	case LogicalTypeId::TIMESTAMP_SEC:
@@ -442,7 +442,7 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 
 				// transform the list child vector to a single R SEXP
 				cpp11::sexp list_element = duckdb_r_allocate(child_type, src_data[row_idx].length);
-				duckdb_r_decorate(child_type, list_element, rc_data[row_idx].length, integer64);
+				duckdb_r_decorate(child_type, list_element, src_data[row_idx].length, integer64);
 				duckdb_r_transform(child_vector, list_element, 0, 1, src_data[row_idx].length, integer64);
 
 				// call R's own extract subset method
@@ -457,22 +457,14 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 		auto &child_type = ArrayType::GetChildType(src_vec.GetType());
 		Vector child_vector(child_type, nullptr);
 
+		auto matrix_nrow = INTEGER_POINTER(Rf_getAttrib(dest, RStrings::get().dim_sym))[0];
+
 		// actual loop over rows
 		for (size_t row_idx = 0; row_idx < n; row_idx++) {
-			if (!FlatVector::Validity(src_vec).RowIsValid(row_idx)) {
-				SET_ELEMENT(dest, dest_offset + row_idx, R_NilValue); // $$$-JL: Set the whole row to NA
-			} else {
-				const auto end = src_data[row_idx].offset + src_data[row_idx].length;
-				child_vector.Slice(ListVector::GetEntry(src_vec), src_data[row_idx].offset, end);
-
-				// transform the list child vector to a single R SEXP
-				cpp11::sexp list_element = duckdb_r_allocate(child_type, src_data[row_idx].length);
-				duckdb_r_decorate(child_type, list_element, src_data[row_idx].length, integer64);
-				duckdb_r_transform(child_vector, list_element, 0, 1, src_data[row_idx].length, integer64);
-
-				// call R's own extract subset method
-				SET_ELEMENT(dest, dest_offset + row_idx, list_element);
-			}
+			size_t offset = (row_idx * array_size); 
+			size_t end = offset + array_size;
+			child_vector.Slice(ArrayVector::GetEntry(src_vec), offset, end);
+			duckdb_r_transform(child_vector, dest, dest_offset + row_idx, matrix_nrow, array_size, integer64);
 		}
 		break;
 	}
