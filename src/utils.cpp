@@ -57,18 +57,17 @@ RStrings::RStrings() {
 	R_PreserveObject(strings);
 	MARK_NOT_MUTABLE(strings);
 
-	cpp11::sexp chars = Rf_allocVector(VECSXP, 11);
-	SET_VECTOR_ELT(chars,  0, UTC_str = Rf_mkString("UTC"));
-	SET_VECTOR_ELT(chars,  1, Date_str = Rf_mkString("Date"));
-	SET_VECTOR_ELT(chars,  2, difftime_str = Rf_mkString("difftime"));
-	SET_VECTOR_ELT(chars,  3, secs_str = Rf_mkString("secs"));
-	SET_VECTOR_ELT(chars,  4, arrow_str = Rf_mkString("arrow"));
-	SET_VECTOR_ELT(chars,  5, duckdb_str = Rf_mkString("duckdb"));
-	SET_VECTOR_ELT(chars,  6, POSIXct_POSIXt_str = StringsToSexp({"POSIXct", "POSIXt"}));
-	SET_VECTOR_ELT(chars,  7, factor_str = Rf_mkString("factor"));
-	SET_VECTOR_ELT(chars,  8, matrix_array_str = StringsToSexp({"matrix", "array"}));
-	SET_VECTOR_ELT(chars,  9, dataframe_str = Rf_mkString("data.frame"));
-	SET_VECTOR_ELT(chars, 10, integer64_str = Rf_mkString("integer64"));
+	cpp11::sexp chars = Rf_allocVector(VECSXP, 10);
+	SET_VECTOR_ELT(chars, 0, UTC_str = Rf_mkString("UTC"));
+	SET_VECTOR_ELT(chars, 1, Date_str = Rf_mkString("Date"));
+	SET_VECTOR_ELT(chars, 2, difftime_str = Rf_mkString("difftime"));
+	SET_VECTOR_ELT(chars, 3, secs_str = Rf_mkString("secs"));
+	SET_VECTOR_ELT(chars, 4, arrow_str = Rf_mkString("arrow"));
+	SET_VECTOR_ELT(chars, 5, duckdb_str = Rf_mkString("duckdb"));
+	SET_VECTOR_ELT(chars, 6, POSIXct_POSIXt_str = StringsToSexp({"POSIXct", "POSIXt"}));
+	SET_VECTOR_ELT(chars, 7, factor_str = Rf_mkString("factor"));
+	SET_VECTOR_ELT(chars, 8, dataframe_str = Rf_mkString("data.frame"));
+	SET_VECTOR_ELT(chars, 9, integer64_str = Rf_mkString("integer64"));
 
 	R_PreserveObject(chars);
 	MARK_NOT_MUTABLE(chars);

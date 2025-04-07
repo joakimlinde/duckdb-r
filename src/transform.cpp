@@ -62,7 +62,7 @@ SEXP duckdb_r_allocate(const LogicalType &type, idx_t nrows) {
 		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
 		if (child_type.IsNested())
-			cpp11::stop("rapi_execute: Array must not be nested.");
+			cpp11::stop("rapi_execute: Arrays must not be nested.");
 		cpp11::sexp varvalue = duckdb_r_allocate(child_type, (nrows * array_size));
 		return varvalue;
 	}
@@ -170,9 +170,12 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
 		if (child_type.IsNested())
-			cpp11::stop("rapi_execute: Array must not be nested.");
+			cpp11::stop("rapi_execute: Arrays must not be nested.");
 		duckdb_r_decorate(child_type, dest, nrows, integer64);
-		SET_CLASS(dest, RStrings::get().matrix_array_str);
+		// The class of a matrix and an array is implicit from 
+		// the dim attribute so we don't set the class attribute.
+		// See: https://svn.r-project.org/R/trunk/src/main/attrib.c:656
+		// SET_CLASS(dest, RStrings::get().matrix_array_str);
 		cpp11::sexp dims = NEW_INTEGER(2);
 		INTEGER(dims)[0] = nrows;
 		INTEGER(dims)[1] = array_size;
