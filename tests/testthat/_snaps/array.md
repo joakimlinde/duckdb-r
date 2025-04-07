@@ -1,4 +1,4 @@
-# array error with more than one dimention
+# array errors with more than one dimention
 
     Code
       dbGetQuery(con, "FROM tbl")
