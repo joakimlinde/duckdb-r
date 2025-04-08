@@ -135,7 +135,7 @@ void ConvertTimestampVector(Vector &src_vec, size_t count, const SEXP dest, uint
 
 std::once_flag nanosecond_coercion_warning;
 
-void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bool integer64) {
+void duckdb_r_decorate(const LogicalType &type, const SEXP dest, bool integer64) {
 	if (type.GetAlias() == R_STRING_TYPE_NAME) {
 		return;
 	}
@@ -162,13 +162,13 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 	case LogicalTypeId::ARRAY: {
 		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
-		duckdb_r_decorate(child_type, dest, nrows, integer64);
+		duckdb_r_decorate(child_type, dest, integer64);
 		// The class of a matrix and an array is implicit from 
 		// the dim attribute so we don't set the class attribute.
 		// See: https://svn.r-project.org/R/trunk/src/main/attrib.c:656
 		// SET_CLASS(dest, RStrings::get().matrix_array_str);
 		cpp11::sexp dims = NEW_INTEGER(2);
-		INTEGER(dims)[0] = nrows;
+		INTEGER(dims)[0] = (Rf_xlength(dest) / array_size);
 		INTEGER(dims)[1] = array_size;
 		Rf_setAttrib(dest, RStrings::get().dim_sym, dims);
 		}
@@ -200,7 +200,7 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 		for (size_t i = 0; i < child_types.size(); i++) {
 			const auto &child_type = child_types[i].second;
 			SEXP child_dest = VECTOR_ELT(dest, i);
-			duckdb_r_decorate(child_type, child_dest, nrows, integer64);
+			duckdb_r_decorate(child_type, child_dest, integer64);
 		}
 
 		break;
@@ -435,7 +435,7 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 
 				// transform the list child vector to a single R SEXP
 				cpp11::sexp list_element = duckdb_r_allocate(child_type, src_data[row_idx].length);
-				duckdb_r_decorate(child_type, list_element, src_data[row_idx].length, integer64);
+				duckdb_r_decorate(child_type, list_element, integer64);
 				duckdb_r_transform(child_vector, list_element, 0, 1, src_data[row_idx].length, integer64);
 
 				// call R's own extract subset method
@@ -449,7 +449,7 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 		auto array_size = ArrayType::GetSize(src_vec.GetType());
 		auto &child_type = ArrayType::GetChildType(src_vec.GetType());
 		Vector child_vector(child_type, nullptr);
-		auto matrix_nrow = ( Rf_length(dest) / array_size );
+		auto matrix_nrow = (Rf_xlength(dest) / array_size);
 
 		// actual loop over rows
 		for (size_t row_idx = 0; row_idx < n; row_idx++) {
@@ -494,8 +494,8 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 				cpp11::sexp key_sexp = duckdb_r_allocate(key_type, length);
 				cpp11::sexp value_sexp = duckdb_r_allocate(value_type, length);
 
-				duckdb_r_decorate(key_type, key_sexp, length, integer64);
-				duckdb_r_decorate(value_type, value_sexp, length, integer64);
+				duckdb_r_decorate(key_type, key_sexp, integer64);
+				duckdb_r_decorate(value_type, value_sexp, integer64);
 
 				duckdb_r_transform(key_child, key_sexp, 0, 1, length, integer64);
 				duckdb_r_transform(value_child, value_sexp, 0, 1, length, integer64);
