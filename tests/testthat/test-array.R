@@ -1,4 +1,3 @@
-previous_edition = edition_get()
 local_edition(3)
 
 test_that("arrays of INTEGER can be read", {
@@ -193,5 +192,3 @@ test_that("array errors with more than one dimention", {
     dbGetQuery(con, "FROM tbl")
   })
 })
-
-local_edition(previous_edition)

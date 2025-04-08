@@ -11,16 +11,9 @@ static void VectorToR(Vector &src_vec, size_t count, void *dest, uint64_t dest_o
 	auto src_ptr = FlatVector::GetData<SRC>(src_vec);
 	auto &mask = FlatVector::Validity(src_vec);
 	auto dest_ptr = ((DEST *)dest) + dest_offset;
-	if (dest_step_size == 1) {
-		// This one is for speed. Maybe a tiny bit faster if the optimzer can figure it out. 	
-		for (size_t row_idx = 0; row_idx < count; row_idx++) {
-			dest_ptr[row_idx] = !mask.RowIsValid(row_idx) ? na_val : src_ptr[row_idx];
-		}
-	} else {
-		for (size_t row_idx = 0; row_idx < count; row_idx++) {
-			dest_ptr[0] = !mask.RowIsValid(row_idx) ? na_val : src_ptr[row_idx];
-			dest_ptr += dest_step_size;
-		}
+	for (size_t row_idx = 0; row_idx < count; row_idx++) {
+		dest_ptr[0] = !mask.RowIsValid(row_idx) ? na_val : src_ptr[row_idx];
+		dest_ptr += dest_step_size;
 	}
 }
 
@@ -62,7 +55,7 @@ SEXP duckdb_r_allocate(const LogicalType &type, idx_t nrows) {
 		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
 		if (child_type.IsNested())
-			cpp11::stop("rapi_execute: Arrays must not be nested.");
+			cpp11::stop("Nested arrays cannot be returned to R as column data.");
 		cpp11::sexp varvalue = duckdb_r_allocate(child_type, (nrows * array_size));
 		return varvalue;
 	}
@@ -169,8 +162,6 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, idx_t nrows, bo
 	case LogicalTypeId::ARRAY: {
 		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
-		if (child_type.IsNested())
-			cpp11::stop("rapi_execute: Arrays must not be nested.");
 		duckdb_r_decorate(child_type, dest, nrows, integer64);
 		// The class of a matrix and an array is implicit from 
 		// the dim attribute so we don't set the class attribute.
